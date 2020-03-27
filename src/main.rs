@@ -1,51 +1,47 @@
-use itertools::Itertools;
-use itertools_num::ItertoolsNum;
-use partitions::PartitionVec;
+// Crates
 use preexplorer::prelude::*;
+use rand::prelude::*;
 
-use markovian::CMarkovChain;
-// use numerical_algorithms::markov_chain::traits::CMarkovChainTrait;
+// Structs
+use coalescence::Coalescent;
+use partitions::PartitionVec;
+
+// Traits
+use itertools_num::ItertoolsNum;
+use markovian::traits::CMarkovChainTrait;
 
 fn main() {
-    let mut init_state: PartitionVec<usize> = PartitionVec::new();
-    for i in 0..20 {
-        init_state.push(i);
-    }
-    fn transition(state: PartitionVec<usize>) -> Vec<(PartitionVec<usize>, f64)> {
-        let mut possibilities = Vec::new();
-        for (index1, index2) in (0..state.len()).tuple_combinations() {
-            let mut possibility = state.clone();
-            possibility.union(index1, index2);
-            possibilities.push((possibility, 1.0));
-        }
-        possibilities
+    let rng = thread_rng();
+    let mut coalescent = Coalescent::new(500, rng);
+
+    // Print realizations
+
+    if false {
+        println!("{:?}", coalescent.state());
+        println!("{:?}", coalescent.next());
+        println!("{:?}", coalescent.next());
+        println!("{:?}", coalescent.next());
+        println!("{:?}", coalescent.next());
+        println!("{:?}", coalescent.next());
     }
 
-    let mc = CMarkovChain::new(init_state.clone(), transition);
-
-    // Realization until extinction
-    let mut realization = vec![(0.0, init_state)];
-    let mut unfinished = true;
-    realization.append(
-        &mut mc
-            .take_while(|(_, x)| {
-                let this_time = unfinished;
-                if x.amount_of_sets() == 1 {
-                    unfinished = false;
-                }
-                this_time
-            })
-            .collect::<Vec<(_, _)>>(),
-    );
+    // Plot group size
 
     if true {
-        plot_group_size(realization.clone());
+        let realization = coalescent.generate_realization();
+        println!("{:?}", coalescent.state());
+        plot_group_size(realization);
     }
 
-    plot_genealogy(realization);
+    // Plot genealogy
+
+    if true {
+        let realization = coalescent.generate_realization();
+        plot_genealogy(realization);
+    }
 }
 
-fn plot_genealogy(realization: Vec<(f64, PartitionVec<usize>)>) {
+fn plot_genealogy(realization: Vec<(f64, PartitionVec<()>)>) {
     let (delta_times, values): (Vec<_>, Vec<_>) = realization.into_iter().unzip();
     let times: Vec<f64> = delta_times.iter().cumsum().collect();
 
@@ -72,7 +68,7 @@ fn plot_genealogy(realization: Vec<(f64, PartitionVec<usize>)>) {
         .unwrap();
 }
 
-fn plot_group_size(realization: Vec<(f64, PartitionVec<usize>)>) {
+fn plot_group_size(realization: Vec<(f64, PartitionVec<()>)>) {
     let (delta_times, values): (Vec<_>, Vec<_>) = realization.into_iter().unzip();
 
     let times: Vec<f64> = delta_times.iter().cumsum().collect();
@@ -80,7 +76,7 @@ fn plot_group_size(realization: Vec<(f64, PartitionVec<usize>)>) {
 
     (times, gropu_size)
         .preexplore()
-        .title("Group size of coallescent process")
+        .title("Group size of coalescent process")
         .labelx("time")
         .labely("size")
         .plot("test")

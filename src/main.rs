@@ -12,7 +12,7 @@ use markovian::traits::CMarkovChainTrait;
 
 fn main() {
     let rng = thread_rng();
-    let mut coalescent = Coalescent::new(500, rng);
+    let mut coalescent = Coalescent::new(100, rng);
 
     // Print realizations
 

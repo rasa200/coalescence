@@ -80,7 +80,7 @@ where
         } else {
             // Simulate time step
 
-            let rate = current_partition_size as f64;
+            let rate = (current_partition_size * (current_partition_size - 1) / 2) as f64;
             let exp = Exp::new(rate).unwrap();
             let time_step = exp.sample(&mut rand::thread_rng());
 

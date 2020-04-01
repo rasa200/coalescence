@@ -7,8 +7,8 @@ Coalescent processes simulation used in population genetics.
 
 # To do list
 
-- [ ] More concise initialization of singleton partitions
 - [ ] Documentation
+  - [ ] Examples
 
 # Roadmap
 

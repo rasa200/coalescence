@@ -9,6 +9,7 @@ Coalescent processes simulation used in population genetics.
 
 - [ ] Documentation
   - [ ] Examples
+- [ ] Tests
 
 # Roadmap
 

@@ -5,9 +5,10 @@ use partitions::PartitionVec;
 use rand_distr::Exp;
 
 // Traits
-use itertools::Itertools;
+// use itertools::Itertools;
 use markovian::traits::CMarkovChainTrait;
 use rand::distributions::Distribution;
+use rand::seq::IteratorRandom;
 use rand::Rng;
 
 /// n-Coalescent process in the space of partitions of the set {1, 2, ..., n}.
@@ -86,35 +87,25 @@ where
 
             // Choose between possible transitions
 
-            let next_partition_index: usize = self
-                .rng()
-                .gen_range(0, current_partition_size * (current_partition_size - 1) / 2);
+            let mut set_indexes = [0; 2];
+            (0..current_partition_size).choose_multiple_fill(&mut self.rng(), &mut set_indexes);
 
-            let (set_index_1, set_index_2) = (0..current_partition_size)
-                .tuple_combinations()
-                .nth(next_partition_index)
-                .unwrap();
-
-            // Join these sets
-
-            let (value_index_1, _) = self
-                .state
-                .all_sets()
-                .nth(set_index_1)
-                .unwrap()
-                .nth(0)
-                .unwrap();
-            let (value_index_2, _) = self
-                .state
-                .all_sets()
-                .nth(set_index_2)
-                .unwrap()
-                .nth(0)
-                .unwrap();
+            // Get values from these sets
+            let value_indexes: Vec<usize> = (0..2)
+                .map(|i| {
+                    self.state
+                        .all_sets()
+                        .nth(set_indexes[i])
+                        .unwrap() // set
+                        .nth(0)
+                        .unwrap() // (value_index, value)
+                        .0
+                })
+                .collect();
 
             // Update chain
 
-            self.state.union(value_index_1, value_index_2);
+            self.state.union(value_indexes[0], value_indexes[1]);
 
             // Return
 

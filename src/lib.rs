@@ -1,8 +1,10 @@
 //! Coalescent process as described in [Coalescent Theory](https://en.wikipedia.org/wiki/Coalescent_theory)
 
 pub use coalescent::*;
+pub use genealogy::*;
 
 pub mod coalescent;
+pub mod genealogy;
 
 pub mod traits;
 

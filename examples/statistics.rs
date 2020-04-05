@@ -3,14 +3,16 @@ use preexplorer::prelude::*;
 use rayon::prelude::*;
 
 // Functions
-
 use rand::thread_rng;
 
 // Structs
 use coalescence::Coalescent;
+use average::Variance;
+use rand_distr::Poisson;
 
 
 // Traits
+use rand::distributions::Distribution;
 
 
 
@@ -37,7 +39,7 @@ fn main() {
     }
 
     // Compare pairwise divergence: empirical vs theoretical
-    if true {
+    if false {
         let power = 10;
         let group_sizes: Vec<usize> = (1..=power).map(|i| 2_usize.pow(i as u32)).collect();
         let samples = 1000;
@@ -45,14 +47,149 @@ fn main() {
         let (empirical, theoretical) = pairwise_divergence_comparison(&group_sizes, samples);
         plot_comparison(&group_sizes, empirical, theoretical, "Pairwise divergence");
     }
+
+
+    // Compare depth: empirical vs theoretical
+    if false {
+        let power = 10;
+        let group_sizes: Vec<usize> = (1..=power).map(|i| 2_usize.pow(i as u32)).collect();
+        let samples = 1000;
+
+        let (empirical, _) = depth_comparison(&group_sizes, samples);
+        plot_emp_var(&group_sizes, empirical, "Depth");
+    }
+
+    // Compare length: empirical vs theoretical
+    if false {
+        let power = 10;
+        let group_sizes: Vec<usize> = (1..=power).map(|i| 2_usize.pow(i as u32)).collect();
+        let samples = 10;
+
+        let (empirical, _) = length_comparison(&group_sizes, samples);
+        plot_emp_var(&group_sizes, empirical, "Length");
+    }
+
+    // Compare pairwise divergence: empirical vs theoretical
+    if false {
+        let power = 10;
+        let group_sizes: Vec<usize> = (1..=power).map(|i| 2_usize.pow(i as u32)).collect();
+        let samples = 1000;
+
+        let (empirical, _) = pairwise_divergence_comparison(&group_sizes, samples);
+        plot_emp_var(&group_sizes, empirical, "Pairwise divergence");
+    }
+
+    if false {
+        let power = 10;
+        let group_sizes: Vec<usize> = (1..=power).map(|i| 2_usize.pow(i as u32)).collect();
+        let samples = 1000;
+
+        let empirical = divergence_sample(&group_sizes, samples);
+        plot_emp_var(&group_sizes, empirical, "Pair divergence");
+    }
+
+
+    if false {
+        let power = 10;
+        let group_sizes: Vec<usize> = (1..=power).map(|i| 2_usize.pow(i as u32)).collect();
+        let samples = 1000;
+
+        let empirical = heterozygosity_sample(&group_sizes, samples);
+        plot_with_error(&group_sizes, empirical, "Heterozygosity");
+    }
 }
 
-fn pairwise_divergence_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<f64>, Vec<f64>) {
+fn plot_with_error(group_sizes: &Vec<usize>, empirical: Vec<Variance>, topic: &str) {
+    let mut data = Vec::new();
+    for i in 0..empirical.len() {
+        data.push(group_sizes[i] as f64);
+        data.push(empirical[i].mean());
+        data.push(empirical[i].error());
+    }
+    let dim = 3;
+
+    pre::Data::new(data, dim)
+        .id(topic)
+        .title(topic)
+        .labelx("initial group size")
+        .labely("time")
+        .logx(2)
+        // .write_plot_script()
+        // .unwrap()
+        .save()
+        .unwrap();
+}
+
+
+fn heterozygosity_sample(group_sizes: &Vec<usize>, samples: usize) -> Vec<Variance> {
+    let mut empirical = Vec::new();
+
+    for group_size in group_sizes {
+        let empirical_sample: Variance = (0..samples)
+            .collect::<Vec<usize>>()
+            .par_iter()
+            .map(|_| {
+                let coalescent = Coalescent::new(*group_size, thread_rng());
+                let mut rng = thread_rng();
+                let depth = coalescent.sample_genealogy(&mut rng).divergence(0, 1) / 2.0;
+                let poi = Poisson::new(depth).unwrap();
+
+                let mutations_1: u64 = poi.sample(&mut rng);
+                let mutations_2: u64 = poi.sample(&mut rng);
+                ((mutations_1 - mutations_2) % 2 == 0) as u32 as f64
+            })
+            .collect::<Vec<f64>>()
+            .iter()
+            .collect();
+        
+        empirical.push(empirical_sample);
+    }
+    
+    empirical
+}
+
+
+fn divergence_sample(group_sizes: &Vec<usize>, samples: usize) -> Vec<Variance> {
+    let mut empirical_depths = Vec::new();
+
+    for group_size in group_sizes {
+        let empirical_depth: Variance = (0..samples)
+            .collect::<Vec<usize>>()
+            .par_iter()
+            .map(|_| {
+                let coalescent = Coalescent::new(*group_size, thread_rng());
+                let mut rng = thread_rng();
+                coalescent.sample_genealogy(&mut rng).divergence(0, 1)
+            })
+            .collect::<Vec<f64>>()
+            .iter()
+            .collect();
+        
+        empirical_depths.push(empirical_depth);
+    }
+    
+    empirical_depths
+}
+
+fn plot_emp_var(group_sizes: &Vec<usize>, empirical: Vec<Variance>, topic: &str) {
+    (group_sizes, empirical.iter().map(|v| v.sample_variance()))
+        .preexplore()
+        .title(format!("{}: empirical variance", topic))
+        .labelx("initial group size")
+        .labely("time")
+        .logx(2)
+        .plot(&format!("{}", topic))
+        .unwrap();
+}
+
+
+
+fn pairwise_divergence_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<Variance>, Vec<f64>) {
     let mut empirical_depths = Vec::new();
     let mut theoretical_depths = Vec::new();
 
     for group_size in group_sizes {
-        let empirical_depth = (0..samples)
+        let empirical_depth: Variance = (0..samples)
             .collect::<Vec<usize>>()
             .par_iter()
             .map(|_| {
@@ -60,20 +197,10 @@ fn pairwise_divergence_comparison(group_sizes: &Vec<usize>, samples: usize) -> (
                 let mut rng = thread_rng();
                 coalescent.sample_genealogy(&mut rng).mean_pairwise_divergence()
             })
-            .sum::<f64>() / samples as f64;
-
-        fn theoretical_iter(x: f64, counter: usize) -> f64 {
-            let n: f64 = counter as f64;
-            let p: f64 = 2.0 / (n * (n - 1.0) );
-            p * (2.0 * p) + (1.0 - p) * (2.0 * p + x)
-        }
-        let mut counter = 2;
-        let mut x = 2.0;
-        while counter < *group_size {
-            x = theoretical_iter(x, counter);
-            counter += 1;
-        }
-        let theoretical_depth = x;
+            .collect::<Vec<f64>>()
+            .iter()
+            .collect();
+        let theoretical_depth = 2.0;
         
         empirical_depths.push(empirical_depth);
         theoretical_depths.push(theoretical_depth);
@@ -82,12 +209,12 @@ fn pairwise_divergence_comparison(group_sizes: &Vec<usize>, samples: usize) -> (
     (empirical_depths, theoretical_depths)
 }
 
-fn length_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<f64>, Vec<f64>) {
+fn length_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<Variance>, Vec<f64>) {
     let mut empirical_depths = Vec::new();
     let mut theoretical_depths = Vec::new();
 
     for group_size in group_sizes {
-        let empirical_depth = (0..samples)
+        let empirical_depth: Variance = (0..samples)
             .collect::<Vec<usize>>()
             .par_iter()
             .map(|_| {
@@ -95,7 +222,9 @@ fn length_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<f64>, Vec
                 let mut rng = thread_rng();
                 coalescent.sample_genealogy(&mut rng).length()
             })
-            .sum::<f64>() / samples as f64;
+            .collect::<Vec<f64>>()
+            .iter()
+            .collect();
 
         let theoretical_depth = 2.0 * ((*group_size as f64 - 1.0).ln() + 0.57721 + 1.0 / (2 * (*group_size  - 1) ) as f64 );
         
@@ -106,9 +235,9 @@ fn length_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<f64>, Vec
     (empirical_depths, theoretical_depths)
 }
 
-fn plot_comparison(group_sizes: &Vec<usize>, empirical: Vec<f64>, theoretical: Vec<f64>, topic: &str) {
+fn plot_comparison(group_sizes: &Vec<usize>, empirical: Vec<Variance>, theoretical: Vec<f64>, topic: &str) {
     pre::process::Comparison::new(vec![
-        (group_sizes, empirical)
+        (group_sizes, empirical.iter().map(|v| v.mean()).collect::<Vec<f64>>())
             .preexplore()
             .title("empirical")
             .to_owned(),
@@ -129,12 +258,12 @@ fn plot_comparison(group_sizes: &Vec<usize>, empirical: Vec<f64>, theoretical: V
 /// # Output
 /// 
 /// (empirical, theoretical). 
-fn depth_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<f64>, Vec<f64>) {
+fn depth_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<Variance>, Vec<f64>) {
     let mut empirical_depths = Vec::new();
     let mut theoretical_depths = Vec::new();
 
     for group_size in group_sizes {
-        let empirical_depth = (0..samples)
+        let empirical_depth: Variance = (0..samples)
             .collect::<Vec<usize>>()
             .par_iter()
             .map(|_| {
@@ -142,7 +271,9 @@ fn depth_comparison(group_sizes: &Vec<usize>, samples: usize) -> (Vec<f64>, Vec<
                 let mut rng = thread_rng();
                 coalescent.sample_genealogy(&mut rng).depth()
             })
-            .sum::<f64>() / samples as f64;
+            .collect::<Vec<f64>>()
+            .iter()
+            .collect();
 
         let theoretical_depth = 2.0 * (1.0 - 1.0 / *group_size as f64);
         
